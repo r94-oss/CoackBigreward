@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EarnApp</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; padding: 20px; }
+        
+        .hidden { display: none !important; }
+        .message { padding: 12px; border-radius: 5px; font-size: 14px; text-align: center; margin-bottom: 15px; display: none; font-weight: bold; }
+        .message.error { background-color: #ffebee; color: #c62828; display: block; border: 1px solid #ef9a9a; }
+        .message.success { background-color: #e8f5e9; color: #2e7d32; display: block; border: 1px solid #a5d6a7; }
+
+        /* ================= LOGIN/REGISTER PAGE ================= */
+        .login-container { width: 100%; max-width: 400px; margin: auto; }
+        .login-card { background-color: #ffffff; padding: 30px 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; }
+        .login-card h2 { color: #00796b; font-size: 24px; margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group input { width: 100%; padding: 14px 15px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 16px; outline: none; }
+        .input-group input:focus { border-color: #00796b; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }
+        .btn-primary { background-color: #00796b; color: white; }
+        .btn-primary:hover { background-color: #005a4f; }
+        .btn-secondary { background-color: #e0f2f1; color: #00796b; border: 1px solid #00796b; margin-top: 15px; }
+        .btn-secondary:hover { background-color: #b2dfdb; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .optional-text { font-size: 12px; color: #666; display: block; margin-bottom: 10px;}
+        .connection-status { padding: 8px; border-radius: 6px; font-size: 13px; margin-bottom: 15px; }
+        .connection-status.connected { background: #e8f5e9; color: #2e7d32; }
+        .connection-status.disconnected { background: #ffebee; color: #c62828; }
+
+        /* ================= DASHBOARD PAGE ================= */
+        .dashboard-container { width: 100%; max-width: 600px; display: none; }
+        .header { background: #00796b; color: white; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { font-size: 16px; }
+        .logout-btn { background: #d32f2f; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: bold;}
+        
+        .balance-card { background: linear-gradient(135deg, #00796b, #004d40); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .balance-card h2 { font-size: 14px; font-weight: normal; opacity: 0.9; }
+        .balance-card .amount { font-size: 32px; font-weight: bold; margin: 10px 0; }
+        .balance-card .email { font-size: 12px; opacity: 0.8; }
+
+        .section-title { font-size: 16px; color: #333; margin-bottom: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;}
+
+        /* Active Package Styles */
+        .active-package-card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #f59e0b; }
+        .active-package-card h4 { color: #00796b; font-size: 16px; margin-bottom: 8px; }
+        .active-package-card .details { display: flex; justify-content: space-between; font-size: 13px; color: #555; margin-bottom: 5px; }
+        .active-package-card .details span { font-weight: bold; color: #111; }
+        .active-package-card .progress-bar { background: #eee; height: 8px; border-radius: 4px; margin-top: 10px; overflow: hidden; }
+        .active-package-card .progress-fill { background: #16a34a; height: 100%; width: 0%; transition: width 0.3s; }
+
+        /* Plans Grid */
+        .plans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .plan-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; }
+        .plan-card h3 { color: #00796b; font-size: 16px; margin-bottom: 5px; }
+        .plan-card .price { font-weight: bold; color: #111; font-size: 18px; }
+        .plan-card .return { font-size: 12px; color: #666; margin-bottom: 10px; }
+        .plan-card button { width: 100%; padding: 8px; background: #00796b; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        .plan-card button:hover { background: #005a4f; }
+
+        /* ================= REFERRAL SECTION ================= */
+        .referral-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #7c3aed; }
+        .referral-box h3 { color: #7c3aed; margin-bottom: 10px; font-size: 18px; }
+        .ref-code-container { display: flex; gap: 10px; margin-bottom: 15px; }
+        .ref-code-container input { flex: 1; padding: 12px; border: 2px dashed #7c3aed; border-radius: 8px; font-size: 18px; font-weight: bold; color: #333; text-align: center; background: #f9f5ff; letter-spacing: 1px; }
+        .ref-code-container button { padding: 0 20px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .ref-code-container button:hover { background: #6d28d9; }
+
+        .ref-rules { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; margin-bottom: 15px; }
+        .ref-rules h4 { font-size: 14px; color: #333; margin-bottom: 8px; }
+        .ref-rules ul { padding-left: 20px; font-size: 13px; color: #555; line-height: 1.6; }
+        
+        .ref-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+        .ref-table th, .ref-table td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        .ref-table th { background: #f1f5f9; color: #475569; font-weight: bold; }
+        .ref-table td:last-child { color: #16a34a; font-weight: bold; }
+
+        .withdraw-box { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);}
+        .withdraw-box .input-group input, .withdraw-box .input-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+
+        /* ================= PAYMENT MODAL ================= */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .payment-modal { background: white; width: 100%; max-width: 400px; border-radius: 12px; padding: 25px 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative; }
+        .close-modal { position: absolute; top: 10px; right: 15px; font-size: 24px; cursor: pointer; color: #888; font-weight: bold; }
+        .payment-modal h3 { color: #d32f2f; margin-bottom: 5px; font-size: 20px; }
+        .payment-modal p { font-size: 14px; color: #555; margin-bottom: 15px; }
+        .payment-details { background: #f8f9fa; border: 1px dashed #00796b; border-radius: 8px; padding: 15px; margin-bottom: 20px; text-align: left; }
+        .payment-details .row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px; }
+        .payment-details .row span:first-child { color: #666; }
+        .payment-details .row span:last-child { font-weight: bold; color: #111; }
+        
+        .whatsapp-btn { background-color: #25D366; color: white; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 8px; font-size: 16px; font-weight: bold; margin-bottom: 10px; transition: 0.2s; }
+        .whatsapp-btn:hover { background-color: #1ebe5b; }
+        
+        .payment-modal input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 15px; font-size: 14px; text-align: center; }
+        .btn-confirm { background-color: #00796b; color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- ================= 1. LOGIN / SIGNUP SCREEN ================= -->
+    <div class="login-container" id="loginSection">
+        <div class="login-card">
+            <h2>🔐 Login / Register</h2>
+            <div id="connectionStatus" class="connection-status disconnected">⏳ Connecting...</div>
+            <div id="authMessageBox" class="message"></div>
+
+            <form id="authForm">
+                <div class="input-group"><input type="text" id="regName" placeholder="Your Name (For Signup only)"></div>
+                <div class="input-group"><input type="email" id="regEmail" placeholder="Email Address" required></div>
+                <div class="input-group"><input type="password" id="regPassword" placeholder="Password (Min 6 chars)" required></div>
+                <div class="input-group"><input type="text" id="regReferral" placeholder="Referral Code (Optional)"></div>
+                <span class="optional-text">* Referral field is optional</span>
+
+                <button type="submit" id="loginBtn" class="btn btn-primary">Login</button>
+                <button type="button" id="signupBtn" class="btn btn-secondary">Create Account (Signup)</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= 2. USER DASHBOARD SCREEN ================= -->
+    <div class="dashboard-container" id="dashboardSection">
+        <div class="header">
+            <h1>👤 User Dashboard</h1>
+            <button class="logout-btn" onclick="logoutUser()">Logout</button>
+        </div>
+
+        <div id="dashMessageBox" class="message"></div>
+
+        <div class="balance-card">
+            <h2>Withdrawable Balance</h2>
+            <div class="amount" id="dashBalance">PKR 0</div>
+            <div class="email" id="dashEmail">Loading...</div>
+        </div>
+
+        <!-- MY ACTIVE PACKAGES SECTION -->
+        <div id="activePackagesSection" class="hidden">
+            <div class="section-title">🔥 My Active Packages</div>
+            <div id="activePackagesContainer"></div>
+        </div>
+
+        <div class="section-title">📦 Buy New Packages</div>
+        <div class="plans-grid" id="dashPlans">
+            <!-- Plans injected via JS -->
+        </div>
+
+        <!-- ================= NEW REFERRAL SYSTEM SECTION ================= -->
+        <div class="section-title">🤝 Refer & Earn</div>
+        <div class="referral-box">
+            <h3>Invite Friends & Earn Commission</h3>
+            
+            <div class="ref-code-container">
+                <input type="text" id="myReferralCode" readonly value="Loading...">
+                <button onclick="copyReferral()">Copy</button>
+            </div>
+
+            <div class="ref-rules">
+                <h4>📌 How it works (Important Rules):</h4>
+                <ul>
+                    <li>Share your referral code with friends.</li>
+                    <li>When they sign up using your code, they become your referral.</li>
+                    <li>When your friend buys a package, you get a commission directly in your balance!</li>
+                    <li><strong>Commission Amount:</strong> You get a fixed percentage of their package price (See table below).</li>
+                    <li>There is no limit to how many friends you can invite.</li>
+                </ul>
+            </div>
+
+            <h4 style="font-size: 14px; margin-bottom: 8px; color: #333;">Commission Details per Package:</h4>
+            <table class="ref-table">
+                <thead>
+                    <tr>
+                        <th>Package Name</th>
+                        <th>Price (PKR)</th>
+                        <th>You Earn (Commission)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Starter</td><td>2,500</td><td>PKR 250</td></tr>
+                    <tr><td>Silver</td><td>5,000</td><td>PKR 500</td></tr>
+                    <tr><td>Gold</td><td>10,000</td><td>PKR 1,000</td></tr>
+                    <tr><td>Platinum</td><td>20,000</td><td>PKR 2,000</td></tr>
+                    <tr><td>Diamond</td><td>50,000</td><td>PKR 5,000</td></tr>
+                    <tr><td>VIP Royal</td><td>100,000</td><td>PKR 10,000</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- ================= END REFERRAL SECTION ================= -->
+
+        <div class="section-title">💸 Request Withdrawal</div>
+        
+        <!-- Message box moved inside withdrawal section so you can see errors immediately -->
+        <div id="withdrawMessageBox" class="message"></div>
+
+        <div class="withdraw-box">
+            <div class="input-group"><input type="number" id="wdAmount" placeholder="Amount (Min 500 PKR)"></div>
+            <div class="input-group">
+                <select id="wdMethod">
+                    <option value="Easypaisa">Easypaisa</option>
+                    <option value="JazzCash">JazzCash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+            </div>
+            <div class="input-group"><input type="text" id="wdAccount" placeholder="Account Number / IBAN"></div>
+            <button class="btn btn-warning" onclick="requestWithdrawal()">Request Withdrawal</button>
+        </div>
+    </div>
+
+    <!-- ================= 3. PAYMENT MODAL ================= -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="payment-modal">
+            <span class="close-modal" onclick="closePaymentModal()">&times;</span>
+            <h3>Complete Your Payment</h3>
+            <p id="modalPlanDetails">Package: Starter - PKR 2,500</p>
+            
+            <div class="payment-details">
+                <div class="row"><span>Method:</span> <span>JazzCash</span></div>
+                <div class="row"><span>Account Name:</span> <span>Farhan</span></div>
+                <div class="row"><span>Account No:</span> <span style="font-size: 18px; color: #d32f2f;">03064290747</span></div>
+                <div class="row"><span>Amount:</span> <span id="modalPrice">2,500</span></div>
+            </div>
+
+            <a href="https://wa.me/923064290747?text=Hello%20Admin,%20I%20have%20sent%20the%20payment%20for%20EarnApp.%20Here%20is%20my%20screenshot." target="_blank" class="whatsapp-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                Send Screenshot on WhatsApp
+            </a>
+
+            <p style="font-size: 12px; margin-bottom: 10px; color: #666;">After sending the payment on WhatsApp, enter your JazzCash Number below to submit request:</p>
+            <input type="text" id="userPaymentPhone" placeholder="Your JazzCash Number (e.g. 03001234567)">
+            <button class="btn-confirm" id="submitRequestBtn" onclick="submitPackageRequest()">Submit Payment Request</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://mvisxrovtlfowmboexls.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_hl_y6rQGi82mthUrWq8yCw_pModRwt1';
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const PLANS = [
+            { id: 'p1', name: 'Starter',   price: 2500,   total: 3500,   daily: 312.5,  ref: 250 },
+            { id: 'p2', name: 'Silver',    price: 5000,   total: 7200,   daily: 625,    ref: 500 },
+            { id: 'p3', name: 'Gold',      price: 10000,  total: 15000,  daily: 1250,   ref: 1000 },
+            { id: 'p4', name: 'Platinum',  price: 20000,  total: 32000,  daily: 2500,   ref: 2000 },
+            { id: 'p5', name: 'Diamond',   price: 50000,  total: 85000,  daily: 6250,   ref: 5000 },
+            { id: 'p6', name: 'VIP Royal', price: 100000, total: 180000, daily: 12500,  ref: 10000 },
+        ];
+
+        let currentUser = null;
+        let selectedPlanForPurchase = null;
+
+        // Ab error message 10 second tak rahega
+        function showMsg(boxId, msg, type) {
+            const el = document.getElementById(boxId);
+            el.textContent = msg; 
+            el.className = 'message ' + type;
+            setTimeout(() => { el.style.display = 'none'; }, 10000);
+        }
+
+        // ==========================================
+        // AUTHENTICATION
+        // ==========================================
+        const authForm = document.getElementById('authForm');
+        const emailInput = document.getElementById('regEmail');
+        const passwordInput = document.getElementById('regPassword');
+        const nameInput = document.getElementById('regName');
+        const referralInput = document.getElementById('regReferral');
+        const loginBtn = document.getElementById('loginBtn');
+        const signupBtn = document.getElementById('signupBtn');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        (async function checkSession() {
+            try {
+                const { data, error } = await supabaseClient.auth.getSession();
+                if (error) throw error;
+                connectionStatus.textContent = '✅ Database connected successfully!';
+                connectionStatus.className = 'connection-status connected';
+
+                if (data.session) {
+                    currentUser = data.session.user;
+                    showDashboard();
+                } else {
+                    showLogin();
+                }
+            } catch (error) {
+                connectionStatus.textContent = '❌ Connection failed: ' + error.message;
+                connectionStatus.className = 'connection-status disconnected';
+            }
+        })();
+
+        signupBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value.trim(), password = passwordInput.value.trim();
+            const name = nameInput.value.trim(), enteredRefCode = referralInput.value.trim();
+            if (!email || !password) return showMsg('authMessageBox', 'Email and Password required!', 'error');
+            if (password.length < 6) return showMsg('authMessageBox', 'Password must be 6+ characters!', 'error');
+
+            signupBtn.textContent = 'Creating...'; signupBtn.disabled = true;
+            try {
+                const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name } } });
+                if (error) throw error;
+                
+                if (data.user) {
+                    const newRefCode = name.substring(0,3).toUpperCase() + "-" + Math.floor(100000 + Math.random() * 900000);
+                    
+                    await supabaseClient.from('profiles').upsert({
+                        id: data.user.id,
+                        full_name: name,
+                        referral_code: newRefCode,
+                        referred_by: enteredRefCode || null, 
+                        withdrawable: 0
+                    });
+
+                    if (data.session) {
+                        currentUser = data.user;
+                        showMsg('authMessageBox', 'Account created & Logged in!', 'success');
+                        setTimeout(showDashboard, 1000);
+                    } else {
+                        showMsg('authMessageBox', 'Account created! Check email to verify.', 'success');
+                    }
+                }
+            } catch (error) {
+                showMsg('authMessageBox', 'Signup failed: ' + error.message, 'error');
+            } finally { signupBtn.textContent = 'Create Account (Signup)'; signupBtn.disabled = false; }
+        });
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value.trim(), password = passwordInput.value.trim();
+            if (!email || !password) return showMsg('authMessageBox', 'Email and Password required!', 'error');
+
+            loginBtn.textContent = 'Wait...'; loginBtn.disabled = true;
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                currentUser = data.user;
+                showMsg('authMessageBox', 'Logged in successfully!', 'success');
+                setTimeout(showDashboard, 1000);
+            } catch (error) {
+                showMsg('authMessageBox', 'Login failed: ' + error.message, 'error');
+            } finally { loginBtn.textContent = 'Login'; loginBtn.disabled = false; }
+        });
+
+        async function logoutUser() {
+            await supabaseClient.auth.signOut();
+            currentUser = null; showLogin();
+        }
+
+        // ==========================================
+        // DASHBOARD & REFERRAL LOGIC
+        // ==========================================
+        async function showDashboard() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').style.display = 'block';
+
+            if (!currentUser) return;
+            document.getElementById('dashEmail').textContent = currentUser.email;
+
+            let { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
+            
+            if (!profile) {
+                const newRefCode = currentUser.email.substring(0,3).toUpperCase() + "-" + Math.floor(100000 + Math.random() * 900000);
+                await supabaseClient.from('profiles').insert({
+                    id: currentUser.id,
+                    full_name: currentUser.user_metadata?.full_name || 'User',
+                    referral_code: newRefCode,
+                    withdrawable: 0
+                });
+                const res = await supabaseClient.from('profiles').select('*').eq('id', currentUser.id).single();
+                profile = res.data;
+            }
+
+            if (profile) {
+                document.getElementById('dashBalance').textContent = 'PKR ' + Number(profile.withdrawable || 0).toLocaleString();
+                document.getElementById('myReferralCode').value = profile.referral_code || 'N/A';
+            }
+
+            await checkReferralCommissions(profile?.referral_code);
+            await loadActivePackages();
+
+            const planContainer = document.getElementById('dashPlans');
+            planContainer.innerHTML = PLANS.map(p => `
+                <div class="plan-card">
+                    <h3>${p.name}</h3>
+                    <div class="price">PKR ${p.price.toLocaleString()}</div>
+                    <div class="return">Daily: PKR ${p.daily.toLocaleString()}</div>
+                    <button onclick="openPaymentModal('${p.id}')">Buy Now</button>
+                </div>
+            `).join('');
+        }
+
+        async function checkReferralCommissions(myRefCode) {
+            try {
+                if (!myRefCode) return; 
+                const { data: referredUsers } = await supabaseClient.from('profiles').select('id').eq('referred_by', myRefCode);
+                if (!referredUsers || referredUsers.length === 0) return;
+
+                const referredIds = referredUsers.map(u => u.id);
+                const { data: pendingCommissions } = await supabaseClient.from('package_requests').select('*').in('user_id', referredIds).eq('status', 'approved').eq('referral_bonus_paid', false);
+
+                if (!pendingCommissions || pendingCommissions.length === 0) return;
+
+                let totalBonus = 0;
+                for (let pkg of pendingCommissions) {
+                    const plan = PLANS.find(p => p.id === pkg.plan_id);
+                    if (plan) totalBonus += plan.ref;
+                }
+
+                if (totalBonus > 0) {
+                    const { data: myProfile } = await supabaseClient.from('profiles').select('withdrawable').eq('id', currentUser.id).single();
+                    const newBalance = Number(myProfile.withdrawable || 0) + totalBonus;
+                    await supabaseClient.from('profiles').update({ withdrawable: newBalance }).eq('id', currentUser.id);
+
+                    const pkgIds = pendingCommissions.map(p => p.id);
+                    await supabaseClient.from('package_requests').update({ referral_bonus_paid: true }).in('id', pkgIds);
+
+                    showMsg('dashMessageBox', `🎉 You earned PKR ${totalBonus.toLocaleString()} commission from your referrals!`, 'success');
+                    document.getElementById('dashBalance').textContent = 'PKR ' + newBalance.toLocaleString();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function copyReferral() {
+            const code = document.getElementById('myReferralCode').value;
+            if(!code || code === 'N/A') return;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Referral Code Copied: ' + code);
+            }).catch(err => {
+                alert('Failed to copy.');
+            });
+        }
+
+        async function loadActivePackages() {
+            const { data: activePkgs } = await supabaseClient.from('package_requests').select('*').eq('user_id', currentUser.id).eq('status', 'approved');
+            const container = document.getElementById('activePackagesContainer');
+            const section = document.getElementById('activePackagesSection');
+
+            if (!activePkgs || activePkgs.length === 0) {
+                section.classList.add('hidden'); return;
+            }
+
+            section.classList.remove('hidden');
+            let html = '';
+            const now = new Date();
+
+            activePkgs.forEach(pkg => {
+                const plan = PLANS.find(p => p.id === pkg.plan_id);
+                if (!plan) return;
+
+                const approveTime = pkg.decided_at ? new Date(pkg.decided_at) : now;
+                const msPassed = now - approveTime;
+                const daysPassed = Math.floor(msPassed / (1000 * 60 * 60 * 24));
+                
+                const totalDays = 10;
+                const daysLeft = Math.max(0, totalDays - daysPassed);
+                const progressPercent = Math.min(100, (daysPassed / totalDays) * 100);
+                const statusText = daysLeft === 0 ? '✅ Completed' : `⏳ ${daysLeft} Days Left`;
+
+                html += `
+                    <div class="active-package-card">
+                        <h4>${plan.name} Package</h4>
+                        <div class="details"><span>Daily Earning:</span> <span>PKR ${plan.daily.toLocaleString()}</span></div>
+                        <div class="details"><span>Total Return:</span> <span>PKR ${plan.total.toLocaleString()}</span></div>
+                        <div class="details"><span>Status:</span> <span style="color: ${daysLeft === 0 ? '#16a34a' : '#f59e0b'}">${statusText}</span></div>
+                        <div class="progress-bar"><div class="progress-fill" style="width: ${progressPercent}%"></div></div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function showLogin() {
+            document.getElementById('loginSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').style.display = 'none';
+            authForm.reset();
+        }
+
+        function openPaymentModal(planId) {
+            selectedPlanForPurchase = PLANS.find(p => p.id === planId);
+            if (!selectedPlanForPurchase) return;
+
+            document.getElementById('modalPlanDetails').textContent = `Package: ${selectedPlanForPurchase.name}`;
+            document.getElementById('modalPrice').textContent = selectedPlanForPurchase.price.toLocaleString();
+            document.getElementById('userPaymentPhone').value = '';
+            document.getElementById('paymentModal').classList.add('active');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('active');
+            selectedPlanForPurchase = null;
+        }
+
+        async function submitPackageRequest() {
+            const phone = document.getElementById('userPaymentPhone').value.trim();
+            const btn = document.getElementById('submitRequestBtn');
+            if (!phone) return alert("Please enter your JazzCash Number.");
+
+            btn.textContent = 'Submitting...'; btn.disabled = true;
+
+            const { error } = await supabaseClient.from('package_requests').insert([{
+                user_id: currentUser.id,
+                user_name: currentUser.user_metadata.full_name || 'User',
+                user_phone: phone,
+                plan_id: selectedPlanForPurchase.id,
+                trx_img: '', 
+                status: 'pending',
+                referral_bonus_paid: false 
+            }]);
+
+            btn.textContent = 'Submit Payment Request'; btn.disabled = false;
+
+            if (error) {
+                alert('Error: ' + error.message);
+            } else {
+                closePaymentModal();
+                showMsg('dashMessageBox', '✅ Request sent! Admin will verify and activate your package.', 'success');
+            }
+        }
+
+        // ==========================================
+        // WITHDRAWAL LOGIC (UPDATED & FIXED)
+        // ==========================================
+        async function requestWithdrawal() {
+            const amount = parseFloat(document.getElementById('wdAmount').value);
+            const method = document.getElementById('wdMethod').value;
+            const accountNo = document.getElementById('wdAccount').value;
+
+            // 1. Check Minimum Amount
+            if (!amount || amount < 500) {
+                return showMsg('withdrawMessageBox', 'Minimum withdrawal is 500 PKR. Please enter a valid amount.', 'error');
+            }
+            if (!accountNo) {
+                return showMsg('withdrawMessageBox', 'Please enter your Account Number / IBAN.', 'error');
+            }
+
+            // 2. Check if user has active packages
+            const { data: activePkgs } = await supabaseClient.from('package_requests').select('*').eq('user_id', currentUser.id).eq('status', 'approved');
+
+            if (!activePkgs || activePkgs.length === 0) {
+                return showMsg('withdrawMessageBox', '❌ You need to buy and activate a package first before withdrawing.', 'error');
+            }
+
+            // 3. Check 10 days lock
+            const sortedPkgs = activePkgs.sort((a,b) => new Date(a.decided_at) - new Date(b.decided_at));
+            const firstApproveTime = new Date(sortedPkgs[0].decided_at);
+            const now = new Date();
+            const msPassed = now - firstApproveTime;
+            const daysPassed = Math.floor(msPassed / (1000 * 60 * 60 * 24));
+            const daysLeft = 10 - daysPassed;
+
+            if (daysPassed < 10) {
+                return showMsg('withdrawMessageBox', `⏳ After 10 days you can withdraw. You have ${daysLeft} days left.`, 'error');
+            }
+
+            // 4. Check if user has enough balance
+            const { data: profile } = await supabaseClient.from('profiles').select('withdrawable').eq('id', currentUser.id).single();
+            if (!profile || Number(profile.withdrawable) < amount) {
+                return showMsg('withdrawMessageBox', '❌ Insufficient balance. Your current balance is ' + Number(profile.withdrawable).toLocaleString() + ' PKR.', 'error');
+            }
+
+            // 5. Save withdrawal request to Supabase
+            const { error } = await supabaseClient.from('withdrawals').insert([{
+                user_id: currentUser.id, 
+                user_name: currentUser.user_metadata.full_name || 'User',
+                amount, 
+                method, 
+                account_no: accountNo, 
+                status: 'pending'
+            }]);
+
+            if (error) {
+                showMsg('withdrawMessageBox', 'Database Error: ' + error.message, 'error');
+            } else {
+                // 6. Deduct balance and update UI
+                await supabaseClient.from('profiles').update({ withdrawable: Number(profile.withdrawable) - amount }).eq('id', currentUser.id);
+                document.getElementById('dashBalance').textContent = 'PKR ' + (Number(profile.withdrawable) - amount).toLocaleString();
+                
+                showMsg('withdrawMessageBox', '✅ Withdrawal request sent successfully!', 'success');
+                document.getElementById('wdAmount').value = '';
+                document.getElementById('wdAccount').value = '';
+            }
+        }
+    </script>
+</body>
+</html>

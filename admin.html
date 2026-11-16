@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EarnApp - Admin Panel</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { background: #f0f2f5; padding-bottom: 40px; }
+
+  .header {
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: white; padding: 18px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header h1 { font-size: 18px; }
+  .header .status { font-size: 12px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 15px; }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin-bottom: 15px;
+  }
+  .stat-card {
+    background: white; padding: 16px; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center;
+    border-left: 4px solid #7c3aed;
+  }
+  .stat-card .num { font-size: 22px; font-weight: bold; color: #7c3aed; }
+  .stat-card .lbl { font-size: 12px; color: #666; margin-top: 4px; }
+
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+  .filters button {
+    padding: 8px 16px; border: 2px solid #e5e7eb; background: white;
+    border-radius: 20px; font-size: 13px; font-weight: bold; cursor: pointer; color: #555;
+    transition: all 0.2s;
+  }
+  .filters button.active { background: #7c3aed; color: white; border-color: #7c3aed; }
+
+  .req-card {
+    background: white; border-radius: 12px; padding: 16px;
+    margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #f59e0b;
+  }
+  .req-card.approved { border-left-color: #16a34a; background: #f0fdf4; }
+  .req-card.rejected { border-left-color: #dc2626; background: #fef2f2; opacity: 0.8; }
+
+  .req-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+  }
+  .req-head h3 { font-size: 15px; color: #111; }
+  .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+  .status-badge.pending { background: #fef3c7; color: #b45309; }
+  .status-badge.approved { background: #d1fae5; color: #065f46; }
+  .status-badge.rejected { background: #fee2e2; color: #991b1b; }
+
+  .info-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px; margin-bottom: 10px; font-size: 13px;
+  }
+  .info-grid .item .key { color: #888; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;}
+  .info-grid .item .val { color: #111; font-weight: bold; font-size: 15px; margin-top: 2px;}
+
+  .trx-img { margin: 8px 0; text-align: center; }
+  .trx-img img { max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #ddd; cursor: pointer; }
+
+  .req-actions { display: flex; gap: 10px; margin-top: 15px; }
+  .req-actions button {
+    flex: 1; padding: 12px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: bold; cursor: pointer; color: white;
+    transition: opacity 0.2s;
+  }
+  .btn-approve { background: #16a34a; }
+  .btn-approve:hover { background: #15803d; }
+  .btn-reject { background: #dc2626; }
+  .btn-reject:hover { background: #b91c1c; }
+  .req-actions button:disabled { background: #d1d5db; cursor: not-allowed; color: #888; }
+
+  .empty { text-align: center; padding: 50px 20px; color: #888; background: white; border-radius: 10px; }
+  .empty .emoji { font-size: 44px; display: block; margin-bottom: 12px; }
+
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #111; color: white; padding: 10px 20px; border-radius: 20px;
+    font-size: 14px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; }
+
+  .img-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+    justify-content: center; align-items: center; z-index: 9999; padding: 20px;
+  }
+  .img-modal.active { display: flex; }
+  .img-modal img { max-width: 100%; max-height: 90vh; border-radius: 8px; }
+  .img-modal .close { position: absolute; top: 15px; right: 20px; color: white; font-size: 32px; cursor: pointer; }
+
+  .loading { text-align: center; padding: 40px; color: #7c3aed; font-size: 16px; }
+  .refresh-btn {
+    background: white; border: 2px solid #7c3aed; color: #7c3aed;
+    padding: 8px 16px; border-radius: 20px; font-weight: bold;
+    cursor: pointer; font-size: 13px; margin-bottom: 15px;
+  }
+  .refresh-btn:hover { background: #7c3aed; color: white; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔐 Admin Panel</h1>
+  <div class="status" id="dbStatus">⏳ Connecting...</div>
+</div>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat-card"><div class="num" id="pendingCount">0</div><div class="lbl">Pending Packages</div></div>
+    <div class="stat-card"><div class="num" id="withdrawCount">0</div><div class="lbl">Pending Withdrawals</div></div>
+    <div class="stat-card"><div class="num" id="totalUsers">0</div><div class="lbl">Total Users</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="active" onclick="setFilter('pending_pkg', this)">⏳ Pending Packages</button>
+    <button onclick="setFilter('withdrawals', this)">💸 Withdrawals</button>
+    <button onclick="setFilter('all_pkg', this)">📋 All Packages</button>
+  </div>
+
+  <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
+
+  <div id="content"><div class="loading">⏳ Loading data from Supabase...</div></div>
+</div>
+
+<div class="img-modal" id="imgModal" onclick="this.classList.remove('active')">
+  <span class="close">&times;</span>
+  <img id="modalImg" src="">
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==========================================
+// ✅ SUPABASE CONFIG
+// ==========================================
+const SUPABASE_URL = 'https://mvisxrovtlfowmboexls.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_hl_y6rQGi82mthUrWq8yCw_pModRwt1';
+
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ==========================================
+// PLANS
+// ==========================================
+const PLANS = [
+  { id: 'p1', name: 'Starter',   price: 2500,   total: 3500,   daily: 312.5,   days: 10 },
+  { id: 'p2', name: 'Silver',    price: 5000,   total: 7200,   daily: 625,     days: 10 },
+  { id: 'p3', name: 'Gold',      price: 10000,  total: 15000,  daily: 1250,    days: 10 },
+  { id: 'p4', name: 'Platinum',  price: 20000,  total: 32000,  daily: 2500,    days: 10 },
+  { id: 'p5', name: 'Diamond',   price: 50000,  total: 85000,  daily: 6250,    days: 10 },
+  { id: 'p6', name: 'VIP Royal', price: 100000, total: 180000, daily: 12500,   days: 10 },
+];
+
+// ==========================================
+// STATE (Loaded from Supabase)
+// ==========================================
+let state = { users: [], requests: [], withdrawals: [] };
+let currentFilter = 'pending_pkg';
+
+function getPlan(planId) { return PLANS.find(p => p.id === planId); }
+
+// ==========================================
+// LOAD DATA FROM SUPABASE
+// ==========================================
+async function loadData() {
+  try {
+    document.getElementById('dbStatus').textContent = '⏳ Loading...';
+    document.getElementById('content').innerHTML = '<div class="loading">⏳ Loading data from Supabase...</div>';
+
+    // 1. Users
+    const { data: users, error: usersErr } = await supabaseClient
+      .from('profiles')
+      .select('*');
+    if (usersErr) console.warn('Users error:', usersErr.message);
+
+    // 2. Package Requests
+    const { data: requests, error: reqErr } = await supabaseClient
+      .from('package_requests')
+      .select('*')
+      .order('requested_at', { ascending: false });
+    if (reqErr) throw reqErr;
+
+    // 3. Withdrawals
+    const { data: withdrawals, error: wErr } = await supabaseClient
+      .from('withdrawals')
+      .select('*')
+      .order('requested_at', { ascending: false });
+    if (wErr) throw wErr;
+
+    // Map data to state
+    state.users = users || [];
+    state.requests = (requests || []).map(r => ({
+      id: r.id,
+      userId: r.user_id,
+      userName: r.user_name || 'Unknown',
+      userPhone: r.user_phone || '—',
+      planId: r.plan_id,
+      trxImg: r.trx_img,
+      status: r.status,
+      requestedAt: new Date(r.requested_at).getTime(),
+      decidedAt: r.decided_at
+    }));
+    state.withdrawals = (withdrawals || []).map(w => ({
+      id: w.id,
+      userId: w.user_id,
+      userName: w.user_name || 'Unknown',
+      amount: w.amount,
+      method: w.method,
+      accountNo: w.account_no,
+      status: w.status,
+      requestedAt: new Date(w.requested_at).getTime(),
+      decidedAt: w.decided_at
+    }));
+
+    document.getElementById('dbStatus').textContent = '✅ Connected';
+    render();
+
+  } catch (error) {
+    console.error('Load error:', error);
+    document.getElementById('dbStatus').textContent = '❌ Error';
+    document.getElementById('content').innerHTML = `
+      <div class="empty">
+        <span class="emoji">⚠️</span>
+        <strong>Database Error</strong><br><br>
+        ${error.message}<br><br>
+        <small>Check karein ke Supabase mein tables bani hui hain (package_requests, withdrawals, profiles)</small>
+      </div>`;
+  }
+}
+
+// ==========================================
+// RENDER UI
+// ==========================================
+function render() {
+  document.getElementById('pendingCount').textContent = state.requests.filter(r => r.status === 'pending').length;
+  document.getElementById('withdrawCount').textContent = state.withdrawals.filter(w => w.status === 'pending').length;
+  document.getElementById('totalUsers').textContent = state.users.length;
+
+  const content = document.getElementById('content');
+  let html = '';
+
+  // ===== WITHDRAWALS TAB =====
+  if (currentFilter === 'withdrawals') {
+    let list = [...state.withdrawals].sort((a, b) => b.requestedAt - a.requestedAt);
+    if (list.length === 0) {
+      content.innerHTML = '<div class="empty"><span class="emoji">💸</span>کوئی withdraw request نہیں</div>';
+      return;
+    }
+    list.forEach(w => {
+      const statusText = w.status === 'pending' ? '⏳ PENDING' : w.status === 'approved' ? '✅ PAID' : '❌ REJECTED';
+      html += `
+        <div class="req-card ${w.status}">
+          <div class="req-head">
+            <h3>👤 ${w.userName}</h3>
+            <span class="status-badge ${w.status}">${statusText}</span>
+          </div>
+          <div class="info-grid">
+            <div class="item">
+              <div class="key">Amount</div>
+              <div class="val" style="color:#16a34a; font-size: 18px;">PKR ${Number(w.amount).toLocaleString()}</div>
+            </div>
+            <div class="item">
+              <div class="key">Method</div>
+              <div class="val">${w.method || '—'}</div>
+            </div>
+            <div class="item">
+              <div class="key">Account Number</div>
+              <div class="val" style="background:#f3f4f6; padding:2px 6px; border-radius:4px; display:inline-block;">${w.accountNo || '—'}</div>
+            </div>
+            <div class="item">
+              <div class="key">Date</div>
+              <div class="val" style="font-size:12px; font-weight:normal; color:#666;">${new Date(w.requestedAt).toLocaleString()}</div>
+            </div>
+          </div>
+          <div class="req-actions">
+            <button class="btn-approve" ${w.status !== 'pending' ? 'disabled' : ''} onclick="approveWithdraw('${w.id}')">
+              ✅ Approve (Paid)
+            </button>
+            <button class="btn-reject" ${w.status !== 'pending' ? 'disabled' : ''} onclick="rejectWithdraw('${w.id}')">
+              ❌ Reject (Refund)
+            </button>
+          </div>
+        </div>`;
+    });
+    content.innerHTML = html;
+    return;
+  }
+
+  // ===== PACKAGES TAB =====
+  let list = [...state.requests].sort((a, b) => b.requestedAt - a.requestedAt);
+  if (currentFilter === 'pending_pkg') list = list.filter(r => r.status === 'pending');
+
+  if (list.length === 0) {
+    content.innerHTML = `<div class="empty"><span class="emoji">📭</span>کوئی package request نہیں</div>`;
+    return;
+  }
+
+  list.forEach(r => {
+    const p = getPlan(r.planId);
+    const statusText = r.status === 'pending' ? '⏳ PENDING' : r.status === 'approved' ? '✅ APPROVED' : '❌ REJECTED';
+    const trxHtml = r.trxImg ? `<div class="trx-img"><img src="${r.trxImg}" onclick="openImg('${r.trxImg}')" alt="Transaction"></div>` : '';
+
+    html += `
+      <div class="req-card ${r.status}">
+        <div class="req-head">
+          <h3>👤 ${r.userName} — ${p ? p.name : 'Unknown'}</h3>
+          <span class="status-badge ${r.status}">${statusText}</span>
+        </div>
+        <div class="info-grid">
+          <div class="item"><div class="key">Phone</div><div class="val">${r.userPhone}</div></div>
+          <div class="item"><div class="key">Amount</div><div class="val">PKR ${(p ? p.price : 0).toLocaleString()}</div></div>
+        </div>
+        ${trxHtml}
+        <div class="req-actions">
+          <button class="btn-approve" ${r.status !== 'pending' ? 'disabled' : ''} onclick="approvePkg('${r.id}')">✅ Approve Package</button>
+          <button class="btn-reject" ${r.status !== 'pending' ? 'disabled' : ''} onclick="rejectPkg('${r.id}')">❌ Reject</button>
+        </div>
+      </div>`;
+  });
+  content.innerHTML = html;
+}
+
+// ==========================================
+// FILTER
+// ==========================================
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+// ==========================================
+// PACKAGE ACTIONS (Supabase)
+// ==========================================
+async function approvePkg(id) {
+  try {
+    const { error } = await supabaseClient
+      .from('package_requests')
+      .update({ status: 'approved', decided_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    toast('✅ Package Approved!');
+    await loadData();
+  } catch (error) {
+    toast('❌ Error: ' + error.message);
+  }
+}
+
+async function rejectPkg(id) {
+  try {
+    const { error } = await supabaseClient
+      .from('package_requests')
+      .update({ status: 'rejected', decided_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    toast('❌ Package Rejected');
+    await loadData();
+  } catch (error) {
+    toast('❌ Error: ' + error.message);
+  }
+}
+
+// ==========================================
+// WITHDRAWAL ACTIONS (Supabase)
+// ==========================================
+async function approveWithdraw(id) {
+  try {
+    const { error } = await supabaseClient
+      .from('withdrawals')
+      .update({ status: 'approved', decided_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+    toast('✅ Withdrawal Approved & Paid');
+    await loadData();
+  } catch (error) {
+    toast('❌ Error: ' + error.message);
+  }
+}
+
+async function rejectWithdraw(id) {
+  try {
+    // 1. Get withdrawal data (for refund)
+    const { data: w, error: wErr } = await supabaseClient
+      .from('withdrawals')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (wErr) throw wErr;
+
+    // 2. Update status
+    const { error: upErr } = await supabaseClient
+      .from('withdrawals')
+      .update({ status: 'rejected', decided_at: new Date().toISOString() })
+      .eq('id', id);
+    if (upErr) throw upErr;
+
+    // 3. Refund amount to user's profile
+    if (w.user_id) {
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('withdrawable')
+        .eq('id', w.user_id)
+        .single();
+      if (profile) {
+        await supabaseClient
+          .from('profiles')
+          .update({ withdrawable: Number(profile.withdrawable || 0) + Number(w.amount) })
+          .eq('id', w.user_id);
+      }
+    }
+
+    toast('❌ Withdrawal Rejected. Amount Refunded.');
+    await loadData();
+  } catch (error) {
+    toast('❌ Error: ' + error.message);
+  }
+}
+
+// ==========================================
+// UTILITIES
+// ==========================================
+function openImg(src) {
+  document.getElementById('modalImg').src = src;
+  document.getElementById('imgModal').classList.add('active');
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ==========================================
+// AUTO REFRESH (Every 30 seconds)
+// ==========================================
+setInterval(() => {
+  if (!document.hidden) loadData();
+}, 30000);
+
+// ==========================================
+// INIT
+// ==========================================
+loadData();
+</script>
+</body>
+</html>
